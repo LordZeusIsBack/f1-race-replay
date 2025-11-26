@@ -78,6 +78,9 @@ def get_race_telemetry(session):
         rel_dist_all = []
         lap_numbers = []
         tyre_compounds = []
+        speed_all = []
+        gear_all = []
+        drs_all = []
 
         total_dist_so_far = 0.0
 
@@ -96,6 +99,9 @@ def get_race_telemetry(session):
             y_lap = lap_tel["Y"].to_numpy()
             d_lap = lap_tel["Distance"].to_numpy()          
             rd_lap = lap_tel["RelativeDistance"].to_numpy()
+            speed_kph_lap = lap_tel["Speed"].to_numpy()
+            gear_lap = lap_tel["nGear"].to_numpy()
+            drs_lap = lap_tel["DRS"].to_numpy()
 
             # normalise lap distance to start at 0
             d_lap = d_lap - d_lap.min()
@@ -113,6 +119,9 @@ def get_race_telemetry(session):
             rel_dist_all.append(rd_lap)
             lap_numbers.append(np.full_like(t_lap, lap_number))
             tyre_compounds.append(np.full_like(t_lap, tyre_compund_as_int))
+            speed_all.append(speed_kph_lap)
+            gear_all.append(gear_lap)
+            drs_all.append(drs_lap)
 
         if not t_all:
             continue
@@ -124,6 +133,9 @@ def get_race_telemetry(session):
         rel_dist_all = np.concatenate(rel_dist_all)
         lap_numbers = np.concatenate(lap_numbers)
         tyre_compounds = np.concatenate(tyre_compounds)
+        speed_all = np.concatenate(speed_all)
+        gear_all = np.concatenate(gear_all)
+        drs_all = np.concatenate(drs_all)
 
         order = np.argsort(t_all)
         t_all = t_all[order]
@@ -133,6 +145,9 @@ def get_race_telemetry(session):
         rel_dist_all = rel_dist_all[order]            
         lap_numbers = lap_numbers[order]
         tyre_compounds = tyre_compounds[order]
+        speed_all = speed_all[order]
+        gear_all = gear_all[order]
+        drs_all = drs_all[order]
 
         driver_data[code] = {
             "t": t_all,
@@ -142,6 +157,9 @@ def get_race_telemetry(session):
             "rel_dist": rel_dist_all,                   
             "lap": lap_numbers,
             "tyre": tyre_compounds,
+            "speed": speed_all,
+            "gear": gear_all,
+            "drs": drs_all,
         }
 
         t_min = t_all.min()
@@ -162,6 +180,9 @@ def get_race_telemetry(session):
         dist = data["dist"]     
         rel_dist = data["rel_dist"]
         tyre = data["tyre"]
+        speed = data['speed']
+        gear = data['gear']
+        drs = data['drs']
 
         # ensure sorted by time
         order = np.argsort(t)
@@ -172,6 +193,9 @@ def get_race_telemetry(session):
         rel_dist_sorted = rel_dist[order]      
         lap_sorted = data["lap"][order]
         tyre_sorted = tyre[order]
+        speed_sorted = speed[order]
+        gear_sorted = gear[order]
+        drs_sorted = drs[order]
  
         x_resampled = np.interp(timeline, t_sorted, x_sorted)
         y_resampled = np.interp(timeline, t_sorted, y_sorted)
@@ -179,6 +203,9 @@ def get_race_telemetry(session):
         rel_dist_resampled = np.interp(timeline, t_sorted, rel_dist_sorted)
         lap_resampled = np.interp(timeline, t_sorted, lap_sorted)
         tyre_resampled = np.interp(timeline, t_sorted, tyre_sorted)
+        speed_resampled = np.interp(timeline, t_sorted, speed_sorted)
+        gear_resampled = np.interp(timeline, t_sorted, gear_sorted)
+        drs_resampled = np.interp(timeline, t_sorted, drs_sorted)
  
         resampled_data[code] = {
             "t": timeline,
@@ -188,6 +215,9 @@ def get_race_telemetry(session):
             "rel_dist": rel_dist_resampled,
             "lap": lap_resampled,
             "tyre": tyre_resampled,
+            "speed": speed_resampled,
+            "gear": gear_resampled,
+            "drs": drs_resampled,
         }
 
     # 4. Incorporate track status data into the timeline (for safety car, VSC, etc.)
@@ -227,6 +257,9 @@ def get_race_telemetry(session):
             "lap": int(round(d["lap"][i])),
             "rel_dist": float(d["rel_dist"][i]),
             "tyre": d["tyre"][i],
+            "speed": d['speed'][i],
+            "gear": int(d['gear'][i]),
+            "drs": int(d['drs'][i]),
           })
 
         # If for some reason we have no drivers at this instant
@@ -247,6 +280,7 @@ def get_race_telemetry(session):
             code = car["code"]
             position = idx + 1
 
+            # include speed, gear, drs_active in frame driver dict
             frame_data[code] = {
                 "x": car["x"],
                 "y": car["y"],
@@ -255,6 +289,9 @@ def get_race_telemetry(session):
                 "rel_dist": round(car["rel_dist"], 6),
                 "tyre": car["tyre"],
                 "position": position,
+                "speed": car['speed'],
+                "gear": car['gear'],
+                "drs": car['drs'],
             }
 
         frames.append({

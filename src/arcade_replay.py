@@ -94,6 +94,10 @@ class F1ReplayWindow(arcade.Window):
         # Trigger initial scaling calculation
         self.update_scaling(self.width, self.height)
 
+        # Selection & hit-testing state for leaderboard
+        self.selected_driver = None
+        self.leaderboard_rects = []  # list of tuples: (code, left, bottom, right, top)
+
     def _interpolate_points(self, xs, ys, interp_points=2000):
         """Generates smooth points in WORLD coordinates."""
         t_old = np.linspace(0, 1, len(xs))
@@ -236,7 +240,11 @@ class F1ReplayWindow(arcade.Window):
         # Sort by distance
         driver_list.sort(key=lambda x: x[2].get("dist", 999), reverse=True)
 
+        # Reset recorded rects each frame
+        self.leaderboard_rects = []
+
         row_height = 25
+        entry_width = 240  # clickable width for each entry
         for i, (code, color, pos) in enumerate(driver_list):
             current_pos = i + 1
             if pos.get("rel_dist", 0) == 1:
@@ -245,21 +253,44 @@ class F1ReplayWindow(arcade.Window):
                 tyre = pos.get("tyre", "?")
                 text = f"{current_pos}. {code}"
             
+            # Compute bounding box for this entry (match how text is positioned)
+            top_y = leaderboard_y - 30 - (i * row_height)
+            bottom_y = top_y - row_height
+            left_x = leaderboard_x
+            right_x = leaderboard_x + entry_width
+
+            # Save for mouse hit-testing
+            self.leaderboard_rects.append((code, left_x, bottom_y, right_x, top_y))
+
+            # Highlight if selected
+            if code == self.selected_driver:
+                # subtle highlight behind the text
+                rect = arcade.XYWH((left_x + right_x) / 2,
+                    (top_y + bottom_y) / 2,
+                    right_x - left_x,
+                    top_y - bottom_y,)
+                arcade.draw_rect_filled(
+                    rect,
+                    arcade.color.LIGHT_GRAY,
+                )
+                text_color = arcade.color.BLACK
+            else:
+                text_color = color
+
             arcade.Text(
                 text,
-                leaderboard_x,
-                leaderboard_y - 30 - (i * row_height),
-                color,
+                left_x,
+                top_y,
+                text_color,
                 16,
                 anchor_x="left", anchor_y="top"
             ).draw()
 
             # Tyre Icons
-
-            tyre_texture = self._tyre_textures.get(str(tyre).upper())
+            tyre_texture = self._tyre_textures.get(str(pos.get("tyre", "?")).upper())
             if tyre_texture:
                 tyre_icon_x = self.width - 30
-                tyre_icon_y = leaderboard_y - 30 - (i * row_height) - 12
+                tyre_icon_y = top_y - 12
                 icon_size = 16
 
                 rect = arcade.XYWH(tyre_icon_x, tyre_icon_y, icon_size, icon_size)
@@ -268,8 +299,8 @@ class F1ReplayWindow(arcade.Window):
                 arcade.draw_texture_rect(
                     rect=rect,
                     texture=tyre_texture,
-                    angle=0,   # rotation in degrees from original orientation (keep the same)
-                    alpha=255  # transparency (255 = fully opaque)
+                    angle=0,
+                    alpha=255
                 )
 
         # Controls Legend - Bottom Left
@@ -291,7 +322,83 @@ class F1ReplayWindow(arcade.Window):
                 14,
                 bold=(i == 0)
             ).draw()
+        
+        # Selected Driver Info - Middle Left
 
+        if self.selected_driver and self.selected_driver in frame["drivers"]:
+            # Draw box, with the driver's name in another box at the top of the original box
+            driver_pos = frame["drivers"][self.selected_driver]
+
+            driver_color = self.driver_colors.get(self.selected_driver, arcade.color.GRAY)
+
+            info_x = 20
+            info_y = self.height / 2 + 100
+            box_width = 300
+            box_height = 150
+            
+            # Background box
+
+            bg_rect = arcade.XYWH(
+                info_x + box_width / 2,
+                info_y - box_height / 2,
+                box_width,
+                box_height
+            )
+
+            arcade.draw_rect_outline(
+                bg_rect,
+                driver_color
+            )
+
+            # Driver Name box
+            name_rect = arcade.XYWH(
+                info_x + box_width / 2,
+                info_y + 20,
+                box_width,
+                40
+            )
+            arcade.draw_rect_filled(
+                name_rect,
+                driver_color
+            )
+            arcade.Text(
+                f"Driver: {self.selected_driver}",
+                info_x + 10,
+                info_y + 20,
+                arcade.color.BLACK,
+                16,
+                anchor_x="left", anchor_y="center"
+            ).draw()
+
+            # Driver Stats from Telemetry
+            speed_text = f"Speed: {driver_pos.get('speed', 0):.1f} km/h"
+            gear_text = f"Gear: {driver_pos.get('gear', 0)}"
+            drs_status = "off"
+            drs_value = driver_pos.get('drs', 0)
+            if drs_value in [0, 1]:
+                drs_status = "Off"
+            elif drs_value == 8:
+                drs_status = "Eligible"
+            elif drs_value in [10, 12, 14]:
+                drs_status = "On"
+            else:
+                drs_status = "Unknown"
+            
+            drs_active_text = f"DRS: {drs_status}"
+            current_lap = driver_pos.get("lap", 1)
+
+            lap_time_text = f"Current Lap: {current_lap}"
+            stats_lines = [speed_text, gear_text, drs_active_text, lap_time_text]
+            for i, line in enumerate(stats_lines):
+                arcade.Text(
+                    line,
+                    info_x + 10,
+                    info_y - 20 - (i * 25),
+                    arcade.color.WHITE,
+                    14,
+                    anchor_x="left", anchor_y="center"
+                ).draw()
+                    
     def on_update(self, delta_time: float):
         if self.paused:
             return
@@ -318,6 +425,20 @@ class F1ReplayWindow(arcade.Window):
             self.playback_speed = 2.0
         elif symbol == arcade.key.KEY_4:
             self.playback_speed = 4.0
+
+    def on_mouse_press(self, x: float, y: float, button: int, modifiers: int):
+        # Default: clear selection
+        new_selection = None
+        for code, left, bottom, right, top in self.leaderboard_rects:
+            if left <= x <= right and bottom <= y <= top:
+                new_selection = code
+                break
+
+        # Toggle if clicking the same entry
+        if new_selection == self.selected_driver:
+            self.selected_driver = None
+        else:
+            self.selected_driver = new_selection
 
 def run_arcade_replay(frames, track_statuses, example_lap, drivers, title, playback_speed=1.0, driver_colors=None):
     window = F1ReplayWindow(
