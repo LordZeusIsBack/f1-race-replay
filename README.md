@@ -47,6 +47,7 @@ python main.py --year 2025 --round 12 --refresh-data
 ## File Structure
 
 - `main.py` — Entry point, handles session loading and starts the replay.
+- `src/lib/tyres.py` — Type definitions for telemetry data structures.
 - `src/f1_data.py` — Telemetry loading, processing, and frame generation.
 - `src/arcade_replay.py` — Visualization and UI logic.
 
