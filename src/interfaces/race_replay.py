@@ -35,6 +35,8 @@ class F1RaceReplayWindow(arcade.Window):
         self.paused = False
         self.total_laps = total_laps
         self.has_weather = any("weather" in frame for frame in frames) if frames else False
+        self.visible_hud = True # If it displays lap and time with track status
+        self.visible_track = True # If it displays the track (or only the racers' dots)
 
         # Rotation (degrees) to apply to the whole circuit around its centre
         self.circuit_rotation = circuit_rotation
@@ -119,6 +121,32 @@ class F1RaceReplayWindow(arcade.Window):
         # Selection & hit-testing state for leaderboard
         self.selected_driver = None
         self.leaderboard_rects = []  # list of tuples: (code, left, bottom, right, top)
+
+    def _toogle_hud_visibility(self):
+        """
+        Toggle the visibility of the HUD
+        """
+        self.visible_hud = not self.visible_hud
+        return self.visible_hud
+    
+    def _set_hud_visible(self):
+        """
+        Sets the HUD visible to True
+        """
+        self.visible_hud = True
+    
+    def _toogle_track_visibility(self):
+        """
+        Toggle the visibility of the HUD
+        """
+        self.visible_track = not self.visible_track
+        return self.visible_track
+    
+    def _set_track_visible(self):
+        """
+        Sets the HUD visible to True
+        """
+        self.visible_track = True
 
     def _interpolate_points(self, xs, ys, interp_points=2000):
         t_old = np.linspace(0, 1, len(xs))
@@ -289,11 +317,12 @@ class F1RaceReplayWindow(arcade.Window):
             track_color = STATUS_COLORS.get("RED")
         elif current_track_status == "6" or current_track_status == "7":
             track_color = STATUS_COLORS.get("VSC")
- 
-        if len(self.screen_inner_points) > 1:
-            arcade.draw_line_strip(self.screen_inner_points, track_color, 4)
-        if len(self.screen_outer_points) > 1:
-            arcade.draw_line_strip(self.screen_outer_points, track_color, 4)
+            
+        if self.visible_track:
+            if len(self.screen_inner_points) > 1:
+                arcade.draw_line_strip(self.screen_inner_points, track_color, 4)
+            if len(self.screen_outer_points) > 1:
+                arcade.draw_line_strip(self.screen_outer_points, track_color, 4)
         
         # 2.5 Draw DRS Zones (green segments on outer track edge)
         if hasattr(self, 'drs_zones') and self.drs_zones and self.toggle_drs_zones:
@@ -312,7 +341,7 @@ class F1RaceReplayWindow(arcade.Window):
                     drs_outer_points.append((sx, sy))
                 
                 # Draw the DRS zone segment
-                if len(drs_outer_points) > 1:
+                if self.visible_track and len(drs_outer_points) > 1:
                     arcade.draw_line_strip(drs_outer_points, drs_color, 6)
 
         # 3. Draw Cars
@@ -362,35 +391,36 @@ class F1RaceReplayWindow(arcade.Window):
         if self.total_laps is not None:
             lap_str += f"/{self.total_laps}"
 
-        # Draw HUD - Top Left                         
-        arcade.Text(lap_str,
-                          20, self.height - 40, 
-                          arcade.color.WHITE, 24, anchor_y="top").draw()
-        
-        arcade.Text(f"Race Time: {time_str} (x{self.playback_speed})", 
-                         20, self.height - 80, 
-                         arcade.color.WHITE, 20, anchor_y="top").draw()
-        
-        if current_track_status == "2":
-            status_text = "YELLOW FLAG"
-            arcade.Text(status_text, 
-                             20, self.height - 120,
-                             arcade.color.YELLOW, 24, bold=True, anchor_y="top").draw()
-        elif current_track_status == "5":
-            status_text = "RED FLAG"
-            arcade.Text(status_text, 
-                             20, self.height - 120, 
-                             arcade.color.RED, 24, bold=True, anchor_y="top").draw()
-        elif current_track_status == "6":
-            status_text = "VIRTUAL SAFETY CAR"
-            arcade.Text(status_text, 
-                             20, self.height - 120, 
-                             arcade.color.ORANGE, 24, bold=True, anchor_y="top").draw()
-        elif current_track_status == "4":
-            status_text = "SAFETY CAR"
-            arcade.Text(status_text, 
-                             20, self.height - 120, 
-                             arcade.color.BROWN, 24, bold=True, anchor_y="top").draw()
+        # Draw HUD - Top Left
+        if self.visible_hud:                      
+            arcade.Text(lap_str,
+                            20, self.height - 40, 
+                            arcade.color.WHITE, 24, anchor_y="top").draw()
+            
+            arcade.Text(f"Race Time: {time_str} (x{self.playback_speed})", 
+                            20, self.height - 80, 
+                            arcade.color.WHITE, 20, anchor_y="top").draw()
+            
+            if current_track_status == "2":
+                status_text = "YELLOW FLAG"
+                arcade.Text(status_text, 
+                                20, self.height - 120,
+                                arcade.color.YELLOW, 24, bold=True, anchor_y="top").draw()
+            elif current_track_status == "5":
+                status_text = "RED FLAG"
+                arcade.Text(status_text, 
+                                20, self.height - 120, 
+                                arcade.color.RED, 24, bold=True, anchor_y="top").draw()
+            elif current_track_status == "6":
+                status_text = "VIRTUAL SAFETY CAR"
+                arcade.Text(status_text, 
+                                20, self.height - 120, 
+                                arcade.color.ORANGE, 24, bold=True, anchor_y="top").draw()
+            elif current_track_status == "4":
+                status_text = "SAFETY CAR"
+                arcade.Text(status_text, 
+                                20, self.height - 120, 
+                                arcade.color.BROWN, 24, bold=True, anchor_y="top").draw()
 
         # Weather component (set info then draw)
         weather_info = frame.get("weather") if frame else None
@@ -412,61 +442,7 @@ class F1RaceReplayWindow(arcade.Window):
         self.leaderboard_rects = self.leaderboard_comp.rects
 
         # Controls Legend - Bottom Left (keeps small offset from left UI edge)
-        legend_x = max(12, self.left_ui_margin - 320) if hasattr(self, "left_ui_margin") else 20
-        legend_y = 200 # Height of legend block
-        legend_icons = self.legend_comp._control_icons_textures # icons
-        legend_lines = [
-            ("Controls:"),
-            ("[SPACE]  Pause/Resume"),
-            ("Rewind / FastForward", ("[", "/", "]"),("arrow-left", "arrow-right")), # text, brackets, icons
-            ("Speed +/- (0.5x, 1x, 2x, 4x)", ("[", "/", "]"), ("arrow-up", "arrow-down")), # text, brackets, icons
-            ("[R]       Restart"),
-            ("[D]       Toggle DRS Zones"),
-            ("[B]       Toggle Progress Bar"),
-            ("[Shift + Click] Select Multiple Drivers")
-
-        ]
-        
-        for i, lines in enumerate(legend_lines):
-            line = lines[0] if isinstance(lines, tuple) else lines # main text
-            brackets = lines[1] if isinstance(lines, tuple) and len(lines) > 2 else None # brackets only if icons exist
-            icon_keys = lines[2] if isinstance(lines, tuple) and len(lines) > 2 else None # icon keys
-        
-            icon_size = 14
-            # Draw icons if any
-            if icon_keys:
-                control_icon_x = legend_x + 12
-                for key in icon_keys:
-                    icon_texture = legend_icons.get(key)
-                    if icon_texture:
-                        control_icon_y = legend_y - (i * 25) + 5 # slight vertical offset
-                        rect = arcade.XYWH(control_icon_x, control_icon_y, icon_size, icon_size)
-                        arcade.draw_texture_rect(
-                            rect = rect,
-                            texture = icon_texture,
-                            angle = 0,
-                            alpha = 255
-                        )
-                        control_icon_x += icon_size + 6  # spacing between icons  
-            # Draw brackets if any              
-            if brackets:
-                for j in range(len(brackets)):
-                    arcade.Text(
-                        brackets[j],
-                        legend_x + (j * (icon_size + 5)),
-                        legend_y - (i * 25),
-                        arcade.color.LIGHT_GRAY if i > 0 else arcade.color.WHITE,
-                        14,
-                    ).draw()
-            # Draw the text line
-            arcade.Text(
-                line,
-                legend_x + (60 if icon_keys else 0),
-                legend_y - (i * 25),
-                arcade.color.LIGHT_GRAY if i > 0 else arcade.color.WHITE,
-                14,
-                bold=(i == 0)
-            ).draw()
+        self.legend_comp.draw(self)
         
         # Selected driver info component
         self.driver_info_comp.draw(self)
@@ -525,6 +501,25 @@ class F1RaceReplayWindow(arcade.Window):
             self.toggle_drs_zones = not self.toggle_drs_zones
         elif symbol == arcade.key.B:
             self.progress_bar_comp.toggle_visibility() # toggle progress bar visibility
+        elif symbol == arcade.key.H and modifiers & arcade.key.MOD_CTRL:
+                self._toogle_hud_visibility() # toogle HUD visibility
+        elif symbol == arcade.key.C and modifiers & arcade.key.MOD_CTRL:
+            self.race_controls_comp.toggle_visibility() # toggle controls visibility
+        elif symbol == arcade.key.W and modifiers & arcade.key.MOD_CTRL:
+            self.weather_comp.toggle_visibility() # toggle weather information visibility
+        elif symbol == arcade.key.L and modifiers & arcade.key.MOD_CTRL:
+            self.leaderboard_comp.toggle_visibility() # toggle leaderboard panel visibility
+        elif symbol == arcade.key.G and modifiers & arcade.key.MOD_CTRL:
+            self.legend_comp.toggle_visibility() # toggle legend visibility
+        elif symbol == arcade.key.T and modifiers & arcade.key.MOD_CTRL:
+            self._toogle_track_visibility() # toggle track visibility
+        elif symbol == arcade.key.ESCAPE: # Sets everything to visible
+            self._set_hud_visible()
+            self.race_controls_comp.set_visible()
+            self.weather_comp.set_visible()
+            self.leaderboard_comp.set_visible()
+            self.legend_comp.set_visible()
+            self._set_track_visible()
 
     def on_mouse_press(self, x: float, y: float, button: int, modifiers: int):
         # forward to components; stop at first that handled it

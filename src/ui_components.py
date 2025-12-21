@@ -22,10 +22,11 @@ class BaseComponent:
     def on_mouse_press(self, window, x: float, y: float, button: int, modifiers: int) -> bool: return False
 
 class LegendComponent(BaseComponent):
-    def __init__(self, x: int = 20, y: int = 220): # Increased y to 220 to fit all lines
+    def __init__(self, x: int = 20, y: int = 300): # Increased y to 350 to fit all lines
         self.x = x
         self.y = y
         self._control_icons_textures = {}
+        self._visible = True
         # Load control icons from images/icons folder (all files)
         icons_folder = os.path.join("images", "controls")
         if os.path.exists(icons_folder):
@@ -35,19 +36,79 @@ class LegendComponent(BaseComponent):
                     texture_path = os.path.join(icons_folder, filename)
                     self._control_icons_textures[texture_name] = arcade.load_texture(texture_path)
         self.lines = [
-            "Controls:",
-            "[SPACE]  Pause/Resume",
-            "[←/→]    Rewind / FastForward",
-            "[↑/↓]    Speed +/- (0.5x, 1x, 2x, 4x)",
-            "[R]       Restart",
-            "[D]       Toggle DRS Zones",
-            "[Shift + Click] Select Multiple Drivers"
+            ("Controls:"),
+            ("[SPACE]  Pause/Resume"),
+            ("Rewind / FastForward", ("[", "/", "]"),("arrow-left", "arrow-right")), # text, brackets, icons
+            ("Speed +/- (0.5x, 1x, 2x, 4x)", ("[", "/", "]"), ("arrow-up", "arrow-down")), # text, brackets, icons
+            ("[R]       Restart"),
+            ("[D]       Toggle DRS Zones"),
+            ("[B]       Toggle Progress Bar"),
+            ("[Shift + Click] Select Multiple Drivers"),
+            ("[Ctrl+key] Toggle visibility:"),
+            ("      H HUD · C Controls · W Weather · L Board · G Legend · T Track"),
+            ("[ESC] Show All"),
         ]
+    
+    @property
+    def visible(self) -> bool:
+        return self._visible
+    
+    @visible.setter
+    def visible(self, value: bool):
+        self._visible = value
+    
+    def toggle_visibility(self) -> bool:
+        """
+        Toggle the visibility of the legend
+        """
+        self._visible = not self._visible
+        return self._visible
+    
+    def set_visible(self):
+        """
+        Set visibility of legend to True
+        """
+        self._visible = True
+    
     def draw(self, window):
-        for i, line in enumerate(self.lines):
+        # Skip rendering entirely if hidden
+        if not self._visible:
+            return
+        for i, lines in enumerate(self.lines):
+            line = lines[0] if isinstance(lines, tuple) else lines # main text
+            brackets = lines[1] if isinstance(lines, tuple) and len(lines) > 2 else None # brackets only if icons exist
+            icon_keys = lines[2] if isinstance(lines, tuple) and len(lines) > 2 else None # icon keys
+        
+            icon_size = 14
+            # Draw icons if any
+            if icon_keys:
+                control_icon_x = self.x + 12
+                for key in icon_keys:
+                    icon_texture = self._control_icons_textures.get(key)
+                    if icon_texture:
+                        control_icon_y = self.y - (i * 25) + 5 # slight vertical offset
+                        rect = arcade.XYWH(control_icon_x, control_icon_y, icon_size, icon_size)
+                        arcade.draw_texture_rect(
+                            rect = rect,
+                            texture = icon_texture,
+                            angle = 0,
+                            alpha = 255
+                        )
+                        control_icon_x += icon_size + 6  # spacing between icons  
+            # Draw brackets if any              
+            if brackets:
+                for j in range(len(brackets)):
+                    arcade.Text(
+                        brackets[j],
+                        self.x + (j * (icon_size + 5)),
+                        self.y - (i * 25),
+                        arcade.color.LIGHT_GRAY if i > 0 else arcade.color.WHITE,
+                        14,
+                    ).draw()
+            # Draw the text line
             arcade.Text(
                 line,
-                self.x,
+                self.x + (60 if icon_keys else 0),
                 self.y - (i * 25),
                 arcade.color.LIGHT_GRAY if i > 0 else arcade.color.WHITE,
                 14,
@@ -62,6 +123,7 @@ class WeatherComponent(BaseComponent):
         self.top_offset = top_offset
         self.info = None
         self._weather_icon_textures = {}
+        self._visible: bool = True
         # Load weather icons from images/weather folder (all files)
         weather_folder = os.path.join("images", "weather")
         if os.path.exists(weather_folder):
@@ -73,7 +135,32 @@ class WeatherComponent(BaseComponent):
 
     def set_info(self, info: Optional[dict]):
         self.info = info
+    
+    @property
+    def visible(self) -> bool:
+        return self._visible
+    
+    @visible.setter
+    def visible(self, value: bool):
+        self._visible = value
+    
+    def toggle_visibility(self) -> bool:
+        """
+        Toggle the visibility of the weather
+        """
+        self._visible = not self._visible
+        return self._visible
+    
+    def set_visible(self):
+        """
+        Set visibility of weather to True
+        """
+        self._visible = True
+
     def draw(self, window):
+        # Skip rendering entirely if hidden
+        if not self._visible:
+            return
         panel_top = window.height - self.top_offset
         if not self.info and not getattr(window, "has_weather", False):
             return
@@ -125,6 +212,7 @@ class LeaderboardComponent(BaseComponent):
         self.selected = []  # Changed to list for multiple selection
         self.row_height = 25
         self._tyre_textures = {}
+        self._visible: bool = True
         # Import the tyre textures from the images/tyres folder (all files)
         tyres_folder = os.path.join("images", "tyres")
         if os.path.exists(tyres_folder):
@@ -134,10 +222,34 @@ class LeaderboardComponent(BaseComponent):
                     texture_path = os.path.join(tyres_folder, filename)
                     self._tyre_textures[texture_name] = arcade.load_texture(texture_path)
 
+    @property
+    def visible(self) -> bool:
+        return self._visible
+    
+    @visible.setter
+    def visible(self, value: bool):
+        self._visible = value
+    
+    def toggle_visibility(self) -> bool:
+        """
+        Toggle the visibility of the leaderboard
+        """
+        self._visible = not self._visible
+        return self._visible
+    
+    def set_visible(self):
+        """
+        Set visibility of leaderboard to True
+        """
+        self._visible = True
+
     def set_entries(self, entries: List[Tuple[str, Tuple[int,int,int], dict, float]]):
         # entries sorted as expected
         self.entries = entries
     def draw(self, window):
+        # Skip rendering entirely if hidden
+        if not self._visible:
+            return
         self.selected = getattr(window, "selected_drivers", [])
         leaderboard_y = window.height - 40
         arcade.Text("Leaderboard", self.x, leaderboard_y, arcade.color.WHITE, 20, bold=True, anchor_x="left", anchor_y="top").draw()
@@ -201,7 +313,6 @@ class LeaderboardComponent(BaseComponent):
                 return True
         return False
 
-
 class LapTimeLeaderboardComponent(BaseComponent):
     def __init__(self, x: int, right_margin: int = 260, width: int = 240):
         self.x = x
@@ -210,12 +321,31 @@ class LapTimeLeaderboardComponent(BaseComponent):
         self.rects = []    # clickable rects per entry
         self.selected = []  # Changed to list
         self.row_height = 25
+        self._visible = True
 
     def set_entries(self, entries: List[dict]):
         """Accept a list of dicts with keys: pos, code, color, time"""
         self.entries = entries or []
+    
+    @property
+    def visible(self) -> bool:
+        return self._visible
+    
+    @visible.setter
+    def visible(self, value: bool):
+        self._visible = value
+    
+    def toggle_visibility(self) -> bool:
+        """
+        Toggle the visibility of the progress bar
+        """
+        self._visible = not self._visible
+        return self._visible
 
     def draw(self, window):
+        # Skip rendering entirely if hidden
+        if not self._visible:
+            return
         self.selected = getattr(window, "selected_drivers", [])
         leaderboard_y = window.height - 40
         arcade.Text("Lap Times", self.x, leaderboard_y, arcade.color.WHITE, 20, bold=True, anchor_x="left", anchor_y="top").draw()
@@ -413,7 +543,6 @@ class QualifyingSegmentSelectorComponent(BaseComponent):
                         print("Error starting telemetry load:", e)
                     return True
         return True # Consume all clicks when visible
-
 
 class DriverInfoComponent(BaseComponent):
     def __init__(self, left=20, width=220, min_top=220):
@@ -974,6 +1103,7 @@ class RaceControlsComponent(BaseComponent):
         self.speed_container_offset = 200
         self._hide_speed_text = False
         self._control_textures = {}
+        self._visible = True
         
         # Button rectangles for hit testing
         self.rewind_rect = None
@@ -997,6 +1127,27 @@ class RaceControlsComponent(BaseComponent):
                     texture_path = os.path.join(_controls_folder, filename)
                     self._control_textures[texture_name] = arcade.load_texture(texture_path)
 
+    @property
+    def visible(self) -> bool:
+        return self._visible
+    
+    @visible.setter
+    def visible(self, value: bool):
+        self._visible = value
+    
+    def toggle_visibility(self) -> bool:
+        """
+        Toggle the visibility of the controls
+        """
+        self._visible = not self._visible
+        return self._visible
+
+    def set_visible(self):
+        """
+        Set visibility of controls to True
+        """
+        self._visible = True
+
     def on_resize(self, window):
         """Recalculate control positions on window resize."""
         self.center_x = window.width / 2
@@ -1018,6 +1169,9 @@ class RaceControlsComponent(BaseComponent):
         self._flash_timer = self._flash_duration
 
     def draw(self, window):
+        # Skip rendering entirely if hidden
+        if not self._visible:
+            return
         """Draw the three playback control buttons."""
         is_paused = getattr(window, 'paused', False)
         
@@ -1303,9 +1457,7 @@ def extract_race_events(frames: List[dict], track_statuses: List[dict], total_la
     
     return events
 
-
 # Build track geometry from example lap telemetry
-
 def build_track_from_example_lap(example_lap, track_width=200):
     drs_zones = plotDRSzones(example_lap)
     plot_x_ref = example_lap["X"]
