@@ -1371,7 +1371,8 @@ class RaceControlsComponent(BaseComponent):
         elif self._point_in_rect(x, y,self.speed_increase_rect):
             # Increase speed
             if hasattr(window, 'playback_speed'):
-                window.playback_speed = window.playback_speed * 2
+                if window.playback_speed < 1024:
+                    window.playback_speed = window.playback_speed * 2
             return True
         elif self._point_in_rect(x, y,self.speed_decrease_rect):
             # Decrease speed
