@@ -1275,6 +1275,7 @@ class RaceProgressBarComponent(BaseComponent):
         # Cached data
         self._events: List[dict] = []
         self._total_frames: int = 0
+        self._max_frame: int = 0
         self._total_laps: int = 0
         self._bar_left: float = 0
         self._bar_width: float = 0
@@ -1296,6 +1297,7 @@ class RaceProgressBarComponent(BaseComponent):
         - events: List of event dictionaries with keys
         """
         self._total_frames = max(1, total_frames)
+        self._max_frame = max(1, self._total_frames - 1)
         self._total_laps = total_laps or 1
         self._events = sorted(events, key=lambda e: e.get("frame", 0))
     
@@ -1337,9 +1339,9 @@ class RaceProgressBarComponent(BaseComponent):
         
         # here we use Clamp frame to valid range to prevent rendering outside bar bounds
         if clamp:
-            frame = max(0, min(frame, self._total_frames))
+            frame = max(0, min(frame, self._max_frame))
         
-        progress = frame / self._total_frames
+        progress = frame / self._max_frame
         return self._bar_left + (progress * self._bar_width)
     
     def _x_to_frame(self, x: float) -> int:
@@ -1347,7 +1349,7 @@ class RaceProgressBarComponent(BaseComponent):
         if self._bar_width <= 0:
             return 0
         progress = (x - self._bar_left) / self._bar_width
-        return int(progress * self._total_frames)
+        return int(progress * self._max_frame)
         
     def on_resize(self, window):
         self._calculate_bar_dimensions(window)
@@ -1376,7 +1378,7 @@ class RaceProgressBarComponent(BaseComponent):
         
         # 2. Draw progress fill
         if self._total_frames > 0:
-            progress_ratio = min(1.0, current_frame / self._total_frames)
+            progress_ratio = min(1.0, current_frame / self._max_frame)
             progress_width = progress_ratio * self._bar_width
             if progress_width > 0:
                 progress_rect = arcade.XYWH(
@@ -1391,7 +1393,7 @@ class RaceProgressBarComponent(BaseComponent):
         if self._total_laps > 1:
             for lap in range(1, self._total_laps + 1):
                 # Approximate frame for lap transition
-                lap_frame = int((lap / self._total_laps) * self._total_frames)
+                lap_frame = int((lap / self._total_laps) * self._max_frame)
                 lap_x = self._frame_to_x(lap_frame)
                 
                 # Draw subtle vertical line
@@ -1469,8 +1471,8 @@ class RaceProgressBarComponent(BaseComponent):
         start_frame = event.get("frame", 0)
         end_frame = event.get("end_frame", start_frame + 100)  # default duration
         
-        clamped_start = max(0, min(start_frame, self._total_frames))
-        clamped_end = max(0, min(end_frame, self._total_frames))
+        clamped_start = max(0, min(start_frame, self._max_frame))
+        clamped_end = max(0, min(end_frame, self._max_frame))
         
         if clamped_start >= clamped_end:
             # after clamping, if start >= end, the segment is fully outside the
@@ -1601,7 +1603,7 @@ class RaceProgressBarComponent(BaseComponent):
             for event in self._events:
                 event_frame = event.get("frame", 0)
                 dist = abs(event_frame - mouse_frame)
-                if dist < min_dist and dist < self._total_frames * 0.02:  # Within 2% of timeline
+                if dist < min_dist and dist < self._max_frame * 0.02:  # Within 2% of timeline
                     min_dist = dist
                     nearest_event = event
                     
@@ -1620,7 +1622,7 @@ class RaceProgressBarComponent(BaseComponent):
             # Seek to clicked position
             target_frame = self._x_to_frame(x)
             if hasattr(window, 'frame_index'):
-                window.frame_index = float(max(0, min(target_frame, self._total_frames - 1)))
+                window.frame_index = float(max(0, min(target_frame, self._max_frame)))
             return True
         return False
 
